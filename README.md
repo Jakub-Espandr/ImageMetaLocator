@@ -109,21 +109,6 @@ ImageMetaLocator/
 
 ---
 
-## 📌 Changelog
-
-### [0.1.0] – 2025-06-22
-
-- Initial release with full functionality:
-  - Drag-and-drop and file dialog support
-  - EXIF reading for `.jpg`, `.tiff`, `.dng`
-  - Map display with GPS pinpoint
-  - Reverse geocoding
-  - Live internet/service status
-  - Click-to-copy for date and address
-  - Multithreaded metadata processing
-
----
-
 ## 🔐 License
 
 This project is licensed under the **Non-Commercial Public License (NCPL v1.0)**  

@@ -34,7 +34,20 @@
   - Converts coordinates into a human-readable address using `geopy`
 
 - **Click-to-Copy**  
-  - Copy full address or photo date with a single click
+  - Copy full address, photo date, or coordinates with a single click
+
+- **Coordinate Format Toggle**  
+  - Switch between decimal and WGS 84 (degrees, minutes, seconds) formats
+  - Interactive button for real-time format switching
+
+- **PDF Export**  
+  - Generate professional PDF reports with original image, metadata, and location map
+  - High-quality output with custom fccTYPO fonts
+  - Single file export for easy sharing and archiving
+
+- **Smart Address Formatting**  
+  - Automatic two-line formatting for better readability
+  - Intelligent natural break detection
 
 - **Live Connection Status**  
   - Status bar shows whether online services (map, geocoder) are available
@@ -70,15 +83,21 @@
 - exifread >= 3.0.0  
 - geopy >= 2.3.0  
 - requests >= 2.28.0  
+- reportlab >= 4.0.0
 
 ---
 
-## 🚀 Installation
+## 🚀 Quick Start
 
 ```bash
+# Clone the repository
 git clone https://github.com/Jakub-Espandr/ImageMetaLocator.git
 cd ImageMetaLocator
+
+# Install dependencies
 pip install -r requirements.txt
+
+# Run the application
 python main.py
 ```
 
@@ -89,7 +108,9 @@ python main.py
 1. Start the app with `python main.py`
 2. Drag a supported image into the window, or use the file picker
 3. View metadata, map, and reverse-geocoded address
-4. Click the clipboard icons to copy location/date
+4. **Copy coordinates**: Click on coordinates to copy them to clipboard
+5. **Toggle coordinate format**: Use the WGS 84 button to switch between decimal and degrees/minutes/seconds format
+6. **Export PDF**: Click "Export Results" to generate a professional PDF report with the image, metadata, and location map
 
 ---
 
@@ -98,29 +119,13 @@ python main.py
 ```
 ImageMetaLocator/
 ├── main.py
-├── gui/              # PySide6 GUI logic
-├── exif/             # Metadata extraction (EXIF/GPS)
-├── map/              # Embedded map widget (WebEngine)
-├── assets/           # Icons, fonts, and styling
-├── utils/            # Helpers (threads, network, conversion)
+├── core/              # Core functionality (metadata, export)
+├── ui/                # PySide6 GUI components
+├── utils/             # Helpers (resources, configuration)
+├── assets/            # Icons, fonts, and styling
 ├── requirements.txt
 └── LICENSE
 ```
-
----
-
-## 📌 Changelog
-
-### [0.1.0] – 2025-06-22
-
-- Initial release with full functionality:
-  - Drag-and-drop and file dialog support
-  - EXIF reading for `.jpg`, `.tiff`, `.dng`
-  - Map display with GPS pinpoint
-  - Reverse geocoding
-  - Live internet/service status
-  - Click-to-copy for date and address
-  - Multithreaded metadata processing
 
 ---
 
@@ -135,4 +140,4 @@ See the [LICENSE](https://github.com/Jakub-Espandr/ImageMetaLocator/raw/main/LIC
 
 ## 🙏 Acknowledgments
 
-- Built with ❤️ using PySide6, Pillow, rawpy, exifread, and geopy
+- Built with ❤️ using PySide6, Pillow, rawpy, exifread, geopy, and reportlab

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.1] - 2025-06-23
+
+### Added
+- **PDF Export**: Generate professional PDF reports with original image, metadata table, and location map
+- **Coordinate Format Toggle**: Switch between decimal and WGS 84 formats with a single click
+- **Clickable Coordinates**: Copy coordinates to clipboard with one click
+- **Smart Address Formatting**: Automatic two-line formatting for better readability
+
+---
+
 ## [0.1.0] - 2025-06-22
 
 ### Features Added

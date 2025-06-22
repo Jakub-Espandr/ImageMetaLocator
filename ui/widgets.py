@@ -38,6 +38,7 @@ class MapWidget(QWidget):
         self.layout = QVBoxLayout(self)
         self.web_view = None
         self.is_loaded = False
+        self.current_html = ""
         
         self.loading_label = QLabel("🗺️ Map will load when GPS coordinates are found")
         self.loading_label.setAlignment(Qt.AlignCenter)
@@ -62,6 +63,7 @@ class MapWidget(QWidget):
         if not self.web_view: return
         html = """<!DOCTYPE html><html><head><title>Map</title><style>body{margin:0;padding:0;}#map{height:100vh;width:100%;}</style></head><body><div id="map"></div></body></html>"""
         self.web_view.setHtml(html)
+        self.current_html = html
     
     def show_location(self, lat: float, lon: float, address: str = ""):
         if not self.is_loaded: self.load_web_engine()
@@ -90,6 +92,11 @@ class MapWidget(QWidget):
             L.marker([{lat}, {lon}]).addTo(map).bindPopup('{js_safe_address}').openPopup();
         </script></body></html>"""
         self.web_view.setHtml(html)
+        self.current_html = html
+    
+    def get_html_content(self):
+        """Get the current HTML content for export purposes."""
+        return self.current_html
 
 class DropArea(QFrame):
     file_dropped = Signal(str)

@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.2.0] - 2025-06-24
+
+### 🚁 **Major Feature: Height Recalculation System**
+- **Negative Height Detection**: Automatic detection and warning for negative flight heights
+- **TIFF Orthomosaic Support**: Upload orthomosaic TIFF files to extract actual map resolution
+- **DJI Drone Presets**: Pre-configured drone models with accurate GSD values:
+  - DJI Phantom 4 PRO (1.36 cm/px at 50m)
+  - DJI Phantom 4 (2.19 cm/px at 50m)
+  - DJI Mavic 2 PRO (1.17 cm/px at 50m)
+  - DJI Mavic 2 ZOOM (1.82 cm/px at 50m)
+- **Custom Drone Setup**: Manual input for reference height and GSD values
+- **Ratio-Based Calculation**: Uses the formula: `Height = (Map_GSD / Drone_GSD) × Drone_Height`
+- **Manual Height Adjustment**: Override calculated heights when they're incorrect (e.g., showing 3m instead of actual height)
+
+### 🎨 **UI/UX Improvements**
+- **Manual Recalculation Button**: "🔧 Recalculate" button available anytime, not just for negative heights
+- **Visual Indicators**: Clear distinction between calculated and manually adjusted heights
+- **Enhanced Status Messages**: Better feedback for recalculation actions
+
+### 🔧 **Technical Enhancements**
+- **Rasterio Integration**: Added support for reading TIFF file metadata and resolution
+- **Flexible Data Handling**: Works with or without existing flight analysis data
+
+### 📦 **Dependencies**
+- **Added**: `rasterio>=1.3.0` for TIFF file processing
+
+---
+
 ## [0.1.2] - 2025-06-24
 
 ### Added

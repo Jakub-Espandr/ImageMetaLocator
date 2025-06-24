@@ -13,7 +13,7 @@ from PySide6.QtCore import Qt, QByteArray, QBuffer, QIODevice
 from PySide6.QtGui import QFont, QPixmap
 
 from core.metadata import MetadataWorker, ConnectionTestWorker, ExportWorker
-from ui.widgets import DropArea, MapWidget, ClickableLabel
+from ui.widgets import DropArea, MapWidget, ClickableLabel, HeightRecalculationDialog
 
 class ImageMetaLocator(QMainWindow):
     """Main application window"""
@@ -71,7 +71,7 @@ class ImageMetaLocator(QMainWindow):
         self.image_preview.setMaximumSize(400, 300)
         self.image_preview.setAlignment(Qt.AlignCenter)
         self.image_preview.setFont(QFont(self.regular_font_family, 10))
-        self.image_preview.setStyleSheet("QLabel { border: 2px solid #dee2e6; border-radius: 8px; background-color: #f8f9fa; color: #6c757d; }")
+        self.image_preview.setStyleSheet("QLabel { border: 2px solid #dee2e6; border-radius: 8px; background-color: white; color: #6c757d; }")
         metadata_layout.addWidget(self.image_preview)
         
         metadata_widget = QWidget()
@@ -92,6 +92,7 @@ class ImageMetaLocator(QMainWindow):
         self.metadata_layout.setSpacing(15)
         self.metadata_placeholder = QLabel("Image metadata will appear here...")
         self.metadata_placeholder.setFont(QFont(self.regular_font_family, 11))
+        self.metadata_placeholder.setStyleSheet("QLabel { background-color: transparent; color: #6c757d; }")
         self.metadata_layout.addWidget(self.metadata_placeholder)
         scroll_area.setWidget(metadata_container)
         metadata_display_layout.addWidget(scroll_area)
@@ -118,11 +119,70 @@ class ImageMetaLocator(QMainWindow):
         self.statusBar().showMessage("Ready")
         self.connection_status_label = QLabel("🌐 Checking connection...")
         self.statusBar().addPermanentWidget(self.connection_status_label)
-        self.statusBar().setStyleSheet("background-color: #e9ecef; color: #212529;")
+        self.statusBar().setStyleSheet("background-color: white; color: #212529; border-top: 1px solid #dee2e6;")
     
     def setup_styles(self):
         font_style = f"font-family: '{self.regular_font_family}';" if self.regular_font_family else ""
-        self.setStyleSheet(f"QMainWindow {{ background-color: #f8f9fa; }} QWidget {{ {font_style} color: #212529; }}")
+        self.setStyleSheet(f"""
+            QMainWindow {{ 
+                background-color: white; 
+            }} 
+            QWidget {{ 
+                {font_style} 
+                color: #212529; 
+                background-color: white;
+            }}
+            QTabWidget::pane {{
+                border: 1px solid #dee2e6;
+                background-color: white;
+            }}
+            QTabBar::tab {{
+                background-color: #f8f9fa;
+                color: #6c757d;
+                padding: 8px 16px;
+                border: 1px solid #dee2e6;
+                border-bottom: none;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+            }}
+            QTabBar::tab:selected {{
+                background-color: white;
+                color: #212529;
+                border-bottom: 1px solid white;
+            }}
+            QTabBar::tab:hover {{
+                background-color: #e9ecef;
+                color: #212529;
+            }}
+            QScrollArea {{
+                background-color: white;
+                border: 1px solid #dee2e6;
+            }}
+            QScrollBar:vertical {{
+                background-color: #f8f9fa;
+                width: 12px;
+                border-radius: 6px;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: #dee2e6;
+                border-radius: 6px;
+                min-height: 20px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: #adb5bd;
+            }}
+            QProgressBar {{
+                background-color: #e9ecef;
+                border: 1px solid #dee2e6;
+                border-radius: 4px;
+                text-align: center;
+                color: #495057;
+            }}
+            QProgressBar::chunk {{
+                background-color: #007bff;
+                border-radius: 3px;
+            }}
+        """)
     
     def test_connection(self):
         self.connection_worker = ConnectionTestWorker()
@@ -161,6 +221,56 @@ class ImageMetaLocator(QMainWindow):
         self.current_metadata = metadata
         self.export_button.setVisible(True)
         
+        # Check for negative flight height and show recalculation dialog
+        if metadata.get('flight_analysis'):
+            flight = metadata['flight_analysis']
+            flight_height = flight.get('flight_height')
+            if flight_height is not None and flight_height < 0:
+                self.show_height_recalculation_dialog(metadata)
+                return
+        
+        self.display_metadata_content(metadata)
+    
+    def show_height_recalculation_dialog(self, metadata: dict):
+        """Show the height recalculation dialog for negative flight height."""
+        # Get flight analysis data if available
+        flight = metadata.get('flight_analysis', {})
+        flight_height = flight.get('flight_height') if flight else None
+        gps_altitude = flight.get('gps_altitude') if flight else metadata.get('altitude')
+        terrain_elevation = flight.get('terrain_elevation_avg') if flight else None
+        
+        dialog = HeightRecalculationDialog(
+            self, 
+            current_flight_height=flight_height,
+            gps_altitude=gps_altitude,
+            terrain_elevation=terrain_elevation
+        )
+        
+        if dialog.exec() == HeightRecalculationDialog.Accepted:
+            recalculated_height = dialog.get_recalculated_height()
+            if recalculated_height is not None:
+                # Create flight analysis if it doesn't exist
+                if 'flight_analysis' not in metadata:
+                    metadata['flight_analysis'] = {
+                        'gps_altitude': gps_altitude,
+                        'terrain_elevation_avg': terrain_elevation or 0,
+                        'terrain_elevations': {},
+                        'sources_used': 0
+                    }
+                
+                # Update the metadata with recalculated height
+                metadata['flight_analysis']['flight_height'] = recalculated_height
+                metadata['flight_analysis']['recalculated'] = True
+                # Check if manual adjustment was used
+                if hasattr(dialog, 'enable_manual_checkbox') and dialog.enable_manual_checkbox.isChecked():
+                    metadata['flight_analysis']['manual_adjustment'] = True
+                self.statusBar().showMessage(f"Height recalculated to {recalculated_height:.2f} m")
+        
+        # Display the metadata (with or without recalculation)
+        self.display_metadata_content(metadata)
+    
+    def display_metadata_content(self, metadata: dict):
+        """Display the metadata content (separated from dialog logic)."""
         while self.metadata_layout.count():
             child = self.metadata_layout.takeAt(0)
             if child.widget(): child.widget().deleteLater()
@@ -200,42 +310,91 @@ class ImageMetaLocator(QMainWindow):
             coord_layout.addWidget(self.toggle_button)
             
             self.metadata_layout.addWidget(coord_container)
+            
+            # Update map with coordinates
             self.map_widget.show_location(lat, lon, metadata.get('address', ''))
-        if metadata.get('address'):
-            self.add_clickable_metadata("🗺️ <b>Address:</b>", metadata['address'], "Address", font)
-        if metadata.get('date'):
-            self.add_clickable_metadata("📅 <b>Date Taken:</b>", metadata['date'], "Date", font)
-        if metadata.get('altitude') is not None:
-            self.add_metadata_label(f"📏 <b>Altitude:</b> {metadata['altitude']:.2f} m", font)
         
-        # Analýza výšky letu dronu
+        if metadata.get('address'):
+            self.add_clickable_metadata("🏠 <b>Address:</b>", metadata['address'], "Address", font)
+        
+        if metadata.get('date'):
+            self.add_clickable_metadata("📅 <b>Date:</b>", metadata['date'], "Date", font)
+        
+        if metadata.get('altitude'):
+            self.add_clickable_metadata("📊 <b>GPS Altitude:</b>", f"{metadata['altitude']:.2f} m", "GPS Altitude", font)
+        
+        # Flight analysis section
         if metadata.get('flight_analysis'):
             flight = metadata['flight_analysis']
             
-            # Nadpis sekce
-            self.add_metadata_label("🚁 <b>FLIGHT HEIGHT ANALYSIS</b>", QFont(self.bold_font_family, 12))
+            # Check if height was recalculated
+            if flight.get('recalculated'):
+                if flight.get('manual_adjustment'):
+                    self.add_metadata_label("🚁 <b>FLIGHT HEIGHT ANALYSIS (MANUAL ADJUSTMENT)</b>", QFont(self.bold_font_family, 12))
+                    self.add_metadata_label("🔧 <b>Height manually adjusted by user</b>", font)
+                else:
+                    self.add_metadata_label("🚁 <b>FLIGHT HEIGHT ANALYSIS (RECALCULATED)</b>", QFont(self.bold_font_family, 12))
+                    self.add_metadata_label("✅ <b>Height recalculated using drone camera GSD</b>", font)
+            else:
+                self.add_metadata_label("🚁 <b>FLIGHT HEIGHT ANALYSIS</b>", QFont(self.bold_font_family, 12))
             
-            # GPS výška (celková)
-            self.add_metadata_label(f"📏 <b>GPS Altitude (Total):</b> {flight['gps_altitude']:.2f} m n.m.", font)
-            
-            # Výška terénu
+            # Terrain elevation
             self.add_metadata_label(f"🏔️ <b>Terrain Elevation:</b> {flight['terrain_elevation_avg']:.2f} m n.m.", font)
             
-            # Výška letu dronu
+            # Flight height with recalculation button
             flight_height = flight['flight_height']
             height_color = "green" if 0 <= flight_height <= 120 else "red"
-            self.add_metadata_label(f"🎯 <b>Drone Flight Height:</b> <span style='color: {height_color};'>{flight_height:.2f} m</span> above terrain", font)
             
-            # Počet zdrojů
+            # Create container for height display and recalculation button
+            height_container = QWidget()
+            height_layout = QHBoxLayout(height_container)
+            height_layout.setContentsMargins(0, 0, 0, 0)
+            height_layout.setSpacing(10)
+            
+            # Height text
+            height_text = f"🎯 <b>Drone Flight Height:</b> <span style='color: {height_color};'>{flight_height:.2f} m</span> above terrain"
+            if flight.get('recalculated'):
+                if flight.get('manual_adjustment'):
+                    height_text += " <span style='color: #dc3545;'>(Manual Adjustment)</span>"
+                else:
+                    height_text += " <span style='color: #28a745;'>(Recalculated)</span>"
+            
+            height_label = QLabel(height_text)
+            height_label.setFont(font)
+            height_label.setTextFormat(Qt.RichText)
+            height_layout.addWidget(height_label)
+            
+            # Recalculation button
+            recalc_button = QPushButton("🔧 Recalculate")
+            recalc_button.setFont(QFont(self.bold_font_family, 9))
+            recalc_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #17a2b8;
+                    color: white;
+                    border: none;
+                    padding: 5px 10px;
+                    border-radius: 3px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #138496;
+                }
+            """)
+            recalc_button.clicked.connect(lambda: self.show_height_recalculation_dialog(metadata))
+            height_layout.addWidget(recalc_button)
+            
+            self.metadata_layout.addWidget(height_container)
+            
+            # Data sources
             self.add_metadata_label(f"📡 <b>Data Sources:</b> {flight['sources_used']} elevation APIs used", font)
             
-            # Varování
-            if flight_height < 0:
+            # Warnings
+            if flight_height < 0 and not flight.get('recalculated'):
                 self.add_metadata_label("⚠️ <b>Warning:</b> Negative flight height! Possible data inaccuracies.", QFont(self.bold_font_family, 10))
             elif flight_height > 120:
                 self.add_metadata_label("⚠️ <b>Warning:</b> Flight height above 120m! Check local regulations.", QFont(self.bold_font_family, 10))
             
-            # Detailní zdroje výšky terénu
+            # Detailed terrain elevation sources
             if flight['terrain_elevations']:
                 self.add_metadata_label("🌐 <b>Terrain Elevation Sources:</b>", font)
                 for source, elevation in flight['terrain_elevations'].items():
@@ -243,9 +402,28 @@ class ImageMetaLocator(QMainWindow):
                         source_name = source.replace('_', ' ').title()
                         self.add_metadata_label(f"   • {source_name}: {elevation:.2f} m", font)
         elif metadata.get('altitude') is not None:
-            # Pokud máme GPS výšku ale nemůžeme získat výšku terénu
+            # If we have GPS altitude but can't get terrain elevation
             self.add_metadata_label("🚁 <b>FLIGHT HEIGHT ANALYSIS</b>", QFont(self.bold_font_family, 12))
             self.add_metadata_label("❌ <b>Unable to calculate flight height:</b> Could not retrieve terrain elevation data", font)
+            
+            # Add recalculation button even when no flight analysis is available
+            recalc_button = QPushButton("🔧 Calculate Height Manually")
+            recalc_button.setFont(QFont(self.bold_font_family, 10))
+            recalc_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #17a2b8;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #138496;
+                }
+            """)
+            recalc_button.clicked.connect(lambda: self.show_height_recalculation_dialog(metadata))
+            self.metadata_layout.addWidget(recalc_button, alignment=Qt.AlignCenter)
     
     def add_metadata_label(self, text, font):
         label = QLabel(text)

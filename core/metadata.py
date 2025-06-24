@@ -381,6 +381,10 @@ class ExportWorker(QThread):
             if self.metadata.get('flight_analysis'):
                 flight = self.metadata['flight_analysis']
                 
+                # Check if height was recalculated
+                if flight.get('recalculated'):
+                    metadata_data.append(['Flight Height Analysis', 'RECALCULATED using drone camera GSD'])
+                
                 # GPS výška (celková)
                 metadata_data.append(['GPS Altitude (Total)', f"{flight['gps_altitude']:.2f} m n.m."])
                 
@@ -390,7 +394,9 @@ class ExportWorker(QThread):
                 # Výška letu dronu
                 flight_height = flight['flight_height']
                 flight_height_text = f"{flight_height:.2f} m above terrain"
-                if flight_height < 0:
+                if flight.get('recalculated'):
+                    flight_height_text += " (Recalculated)"
+                elif flight_height < 0:
                     flight_height_text += " (⚠️ Negative - possible data inaccuracies)"
                 elif flight_height > 120:
                     flight_height_text += " (⚠️ Above 120m - check regulations)"
@@ -408,7 +414,7 @@ class ExportWorker(QThread):
                             sources_text += f"• {source_name}: {elevation:.2f} m\n"
                     if sources_text:
                         metadata_data.append(['Terrain Sources', sources_text.strip()])
-                        
+            
             elif self.metadata.get('altitude') is not None:
                 # Pokud máme GPS výšku ale nemůžeme získat výšku terénu
                 metadata_data.append(['GPS Altitude', f"{self.metadata['altitude']:.2f} m"])

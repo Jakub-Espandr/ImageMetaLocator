@@ -207,11 +207,51 @@ class ImageMetaLocator(QMainWindow):
             self.add_clickable_metadata("📅 <b>Date Taken:</b>", metadata['date'], "Date", font)
         if metadata.get('altitude') is not None:
             self.add_metadata_label(f"📏 <b>Altitude:</b> {metadata['altitude']:.2f} m", font)
+        
+        # Analýza výšky letu dronu
+        if metadata.get('flight_analysis'):
+            flight = metadata['flight_analysis']
+            
+            # Nadpis sekce
+            self.add_metadata_label("🚁 <b>FLIGHT HEIGHT ANALYSIS</b>", QFont(self.bold_font_family, 12))
+            
+            # GPS výška (celková)
+            self.add_metadata_label(f"📏 <b>GPS Altitude (Total):</b> {flight['gps_altitude']:.2f} m n.m.", font)
+            
+            # Výška terénu
+            self.add_metadata_label(f"🏔️ <b>Terrain Elevation:</b> {flight['terrain_elevation_avg']:.2f} m n.m.", font)
+            
+            # Výška letu dronu
+            flight_height = flight['flight_height']
+            height_color = "green" if 0 <= flight_height <= 120 else "red"
+            self.add_metadata_label(f"🎯 <b>Drone Flight Height:</b> <span style='color: {height_color};'>{flight_height:.2f} m</span> above terrain", font)
+            
+            # Počet zdrojů
+            self.add_metadata_label(f"📡 <b>Data Sources:</b> {flight['sources_used']} elevation APIs used", font)
+            
+            # Varování
+            if flight_height < 0:
+                self.add_metadata_label("⚠️ <b>Warning:</b> Negative flight height! Possible data inaccuracies.", QFont(self.bold_font_family, 10))
+            elif flight_height > 120:
+                self.add_metadata_label("⚠️ <b>Warning:</b> Flight height above 120m! Check local regulations.", QFont(self.bold_font_family, 10))
+            
+            # Detailní zdroje výšky terénu
+            if flight['terrain_elevations']:
+                self.add_metadata_label("🌐 <b>Terrain Elevation Sources:</b>", font)
+                for source, elevation in flight['terrain_elevations'].items():
+                    if elevation is not None:
+                        source_name = source.replace('_', ' ').title()
+                        self.add_metadata_label(f"   • {source_name}: {elevation:.2f} m", font)
+        elif metadata.get('altitude') is not None:
+            # Pokud máme GPS výšku ale nemůžeme získat výšku terénu
+            self.add_metadata_label("🚁 <b>FLIGHT HEIGHT ANALYSIS</b>", QFont(self.bold_font_family, 12))
+            self.add_metadata_label("❌ <b>Unable to calculate flight height:</b> Could not retrieve terrain elevation data", font)
     
     def add_metadata_label(self, text, font):
         label = QLabel(text)
         label.setFont(font)
         label.setWordWrap(True)
+        label.setTextFormat(Qt.RichText)
         self.metadata_layout.addWidget(label)
 
     def add_clickable_metadata(self, prefix, value, field_name, font):
@@ -284,10 +324,10 @@ class ImageMetaLocator(QMainWindow):
             self.map_widget.raise_()
             
             # Process events multiple times to ensure rendering
-            for _ in range(3):
+            for _ in range(5):  # Increased from 3 to 5
                 QApplication.processEvents()
                 import time
-                time.sleep(0.5)
+                time.sleep(0.8)  # Increased from 0.5 to 0.8
             
             # If web view exists, ensure it's loaded
             if hasattr(self.map_widget, 'web_view') and self.map_widget.web_view:
@@ -295,7 +335,11 @@ class ImageMetaLocator(QMainWindow):
                 # Force the web view to be visible
                 self.map_widget.web_view.show()
                 self.map_widget.web_view.raise_()
-                QApplication.processEvents()
+                
+                # Additional wait for web view to render
+                for _ in range(3):
+                    QApplication.processEvents()
+                    time.sleep(0.5)
                 
         except Exception as e:
             print(f"Error ensuring map is loaded: {e}")
@@ -318,10 +362,20 @@ class ImageMetaLocator(QMainWindow):
                 # Try to capture the web view content
                 pixmap = self.map_widget.web_view.grab()
                 
-                # If the web view is empty, try capturing the entire widget
-                if pixmap.isNull() or pixmap.size().width() < 100:
-                    print("Web view capture failed, trying entire widget...")
+                # If the web view is empty or too small, try capturing the entire widget
+                if pixmap.isNull() or pixmap.size().width() < 100 or pixmap.size().height() < 100:
+                    print("Web view capture failed or too small, trying entire widget...")
                     pixmap = self.map_widget.grab()
+                    
+                    # If still no success, try to wait a bit more and retry
+                    if pixmap.isNull() or pixmap.size().width() < 100:
+                        print("Waiting for map to load and retrying...")
+                        import time
+                        time.sleep(2)
+                        QApplication.processEvents()
+                        pixmap = self.map_widget.web_view.grab()
+                        if pixmap.isNull():
+                            pixmap = self.map_widget.grab()
             else:
                 print("Capturing entire map widget...")
                 pixmap = self.map_widget.grab()
@@ -329,7 +383,7 @@ class ImageMetaLocator(QMainWindow):
             print(f"Pixmap captured, is null: {pixmap.isNull()}")
             print(f"Pixmap size: {pixmap.size()}")
             
-            if not pixmap.isNull():
+            if not pixmap.isNull() and pixmap.size().width() > 50 and pixmap.size().height() > 50:
                 print("Converting pixmap to bytes...")
                 # Convert QPixmap to QByteArray, then to bytes
                 byte_array = QByteArray()
@@ -373,7 +427,7 @@ class ImageMetaLocator(QMainWindow):
                     print("Failed to save pixmap or byte array is empty")
                     return None
             else:
-                print("Failed to capture map - pixmap is null")
+                print("Failed to capture map - pixmap is null or too small")
                 return None
                 
         except Exception as e:

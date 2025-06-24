@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.1.2] - 2025-06-24
+
+### Added
+- **Drone Flight Height Analysis**: Complete flight height calculation with terrain elevation data
+  - GPS Altitude (Total): Complete GPS altitude above sea level
+  - Terrain Elevation: Ground elevation from multiple online elevation APIs
+  - Drone Flight Height: Actual drone height above terrain (GPS - Terrain)
+  - Data Sources: Shows number of elevation APIs used for accuracy
+  - Terrain Sources: Detailed list of elevation data sources with values
+- **Multiple Elevation APIs**: Integration with free elevation services:
+  - Open-Elevation API
+  - OpenTopoData SRTM (Shuttle Radar Topography Mission)
+  - OpenTopoData ASTER dataset
+- **Flight Safety Warnings**: Automatic warnings for:
+  - Negative flight heights (data accuracy issues)
+  - Heights above 120m (regulatory compliance)
+- **Enhanced PDF Export**: Flight height analysis included in PDF reports
+
+### Technical Improvements
+- **Robust API Integration**: Multiple fallback sources for terrain elevation data
+- **Enhanced Error Handling**: Better handling of network issues and API failures
+- **Improved Map Loading**: More reliable map capture for PDF export with retry mechanisms
+
+---
+
 ## [0.1.1] - 2025-06-23
 
 ### Added

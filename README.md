@@ -7,7 +7,11 @@
 <h1 align="center">Image Meta Locator</h1>
 <p align="center"><em>(Born4Flight | FlyCamCzech)</em></p>
 
----
+<p align="center">
+  <a href="https://ibb.co/KShNYM2">
+    <img src="https://i.ibb.co/7LCgHwn/Image-Meta-Locator.png" alt="UAV AreaCalc Image Meta Locator Interface" width="50%"/>
+  </a>
+</p>
 
 ## 🗺️ Overview
 
@@ -45,6 +49,12 @@
   - High-quality output with custom fccTYPO fonts
   - Single file export for easy sharing and archiving
 
+- **Drone Flight Height Analysis**  
+  - Calculate actual drone height above terrain using GPS altitude and terrain elevation data
+  - Multiple elevation APIs for accurate terrain data (Open-Elevation, OpenTopoData)
+  - Flight safety warnings for negative heights or heights above 120m
+  - Complete analysis included in PDF export
+
 - **Smart Address Formatting**  
   - Automatic two-line formatting for better readability
   - Intelligent natural break detection
@@ -64,6 +74,11 @@
 
 - **GPS Data**  
   - Latitude, longitude, altitude (if available)
+
+- **Flight Height Analysis**  
+  - GPS altitude (total), terrain elevation, and actual drone flight height above terrain
+  - Multiple elevation data sources for accuracy
+  - Flight safety warnings and compliance checks
 
 - **Location**  
   - Reverse-geocoded address from coordinates

@@ -5,6 +5,7 @@ import base64
 import io
 from datetime import datetime
 import math
+import time
 
 try:
     import requests
@@ -156,12 +157,20 @@ def extract_metadata(image_path):
     lat, lon, alt = get_coordinates(exif)
     date = exif.get("DateTimeOriginal", "Unknown")
     address = reverse_geocode(lat, lon) if lat and lon else "No GPS data"
+    
+    # Analýza výšky letu
+    flight_analysis = None
+    if lat and lon and alt:
+        terrain_elevations = get_terrain_elevation(lat, lon)
+        flight_analysis, error = calculate_flight_height(alt, terrain_elevations)
+    
     return {
         'filename': os.path.basename(image_path),
         'coordinates': (lat, lon) if lat and lon else None,
         'address': address,
         'date': date,
         'altitude': alt,
+        'flight_analysis': flight_analysis,
     }
 
 class ExportWorker(QThread):
@@ -367,8 +376,43 @@ class ExportWorker(QThread):
                     metadata_data.append(['Address', address])
             if self.metadata.get('date'):
                 metadata_data.append(['Date Taken', self.metadata['date']])
-            if self.metadata.get('altitude') is not None:
-                metadata_data.append(['Altitude', f"{self.metadata['altitude']:.2f} m"])
+            
+            # Analýza výšky letu
+            if self.metadata.get('flight_analysis'):
+                flight = self.metadata['flight_analysis']
+                
+                # GPS výška (celková)
+                metadata_data.append(['GPS Altitude (Total)', f"{flight['gps_altitude']:.2f} m n.m."])
+                
+                # Výška terénu
+                metadata_data.append(['Terrain Elevation', f"{flight['terrain_elevation_avg']:.2f} m n.m."])
+                
+                # Výška letu dronu
+                flight_height = flight['flight_height']
+                flight_height_text = f"{flight_height:.2f} m above terrain"
+                if flight_height < 0:
+                    flight_height_text += " (⚠️ Negative - possible data inaccuracies)"
+                elif flight_height > 120:
+                    flight_height_text += " (⚠️ Above 120m - check regulations)"
+                metadata_data.append(['Drone Flight Height', flight_height_text])
+                
+                # Počet zdrojů
+                metadata_data.append(['Data Sources', f"{flight['sources_used']} elevation APIs used"])
+                
+                # Detailní zdroje výšky terénu
+                if flight['terrain_elevations']:
+                    sources_text = ""
+                    for source, elevation in flight['terrain_elevations'].items():
+                        if elevation is not None:
+                            source_name = source.replace('_', ' ').title()
+                            sources_text += f"• {source_name}: {elevation:.2f} m\n"
+                    if sources_text:
+                        metadata_data.append(['Terrain Sources', sources_text.strip()])
+                        
+            elif self.metadata.get('altitude') is not None:
+                # Pokud máme GPS výšku ale nemůžeme získat výšku terénu
+                metadata_data.append(['GPS Altitude', f"{self.metadata['altitude']:.2f} m"])
+                metadata_data.append(['Flight Height Analysis', 'Unable to calculate - terrain elevation data unavailable'])
             
             if metadata_data:
                 metadata_table = Table(metadata_data, colWidths=[2*inch, 4*inch])
@@ -669,3 +713,80 @@ class ExportWorker(QThread):
         seconds = (minutes_decimal - minutes) * 60
         
         return degrees, minutes, seconds 
+
+def get_terrain_elevation(latitude, longitude):
+    """
+    Získá nadmořskou výšku terénu pro dané GPS souřadnice
+    Používá několik různých API pro získání dat
+    """
+    if not requests:
+        return {}
+    
+    elevation_data = {}
+    
+    # 1. Open-Elevation API (zdarma, bez klíče)
+    try:
+        url = f"https://api.open-elevation.com/api/v1/lookup?locations={latitude},{longitude}"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data['results']:
+                elevation_data['open_elevation'] = data['results'][0]['elevation']
+    except Exception as e:
+        print(f"Open-Elevation API chyba: {e}")
+    
+    # 2. OpenTopoData API (zdarma, bez klíče) - Shuttle Radar Topography Mission
+    try:
+        url = f"https://api.opentopodata.org/v1/srtm30m?locations={latitude},{longitude}"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data['results'] and data['results'][0]['elevation'] is not None:
+                elevation_data['opentopodata_srtm'] = data['results'][0]['elevation']
+    except Exception as e:
+        print(f"OpenTopoData API chyba: {e}")
+    
+    # 3. OpenTopoData API - ASTER dataset
+    try:
+        url = f"https://api.opentopodata.org/v1/aster30m?locations={latitude},{longitude}"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data['results'] and data['results'][0]['elevation'] is not None:
+                elevation_data['opentopodata_aster'] = data['results'][0]['elevation']
+    except Exception as e:
+        print(f"OpenTopoData ASTER API chyba: {e}")
+    
+    # Krátká pauza mezi dotazy
+    time.sleep(0.5)
+    
+    return elevation_data
+
+def calculate_flight_height(gps_altitude, terrain_elevations):
+    """
+    Vypočítá výšku letu dronu nad terénem
+    """
+    if not terrain_elevations:
+        return None, "Nepodařilo se získat výšku terénu"
+    
+    # Použijeme průměr z dostupných zdrojů pro přesnější výsledek
+    valid_elevations = [v for v in terrain_elevations.values() if v is not None]
+    
+    if not valid_elevations:
+        return None, "Žádné platné údaje o výšce terénu"
+    
+    # Průměrná výška terénu
+    avg_terrain_elevation = sum(valid_elevations) / len(valid_elevations)
+    
+    # Výška letu = GPS výška - výška terénu
+    flight_height = gps_altitude - avg_terrain_elevation
+    
+    analysis = {
+        'gps_altitude': gps_altitude,
+        'terrain_elevation_avg': avg_terrain_elevation,
+        'terrain_elevations': terrain_elevations,
+        'flight_height': flight_height,
+        'sources_used': len(valid_elevations)
+    }
+    
+    return analysis, None 
